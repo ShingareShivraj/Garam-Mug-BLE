@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'scan_screen.dart';
+import 'my_mugs_screen.dart';
 import 'login_screen.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
@@ -37,6 +37,7 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<Offset> _textSlide;
 
   Timer? _navigationTimer;
+  bool _checkingSession = false;
 
   // ================================================================
   // INIT
@@ -156,11 +157,13 @@ class _SplashScreenState extends State<SplashScreen>
   // ================================================================
 
   Future<void> _goToNextScreen() async {
-    if (!mounted) return;
+    if (!mounted || _checkingSession) return;
+    _checkingSession = true;
     bool loggedIn;
     try {
       loggedIn = await context.read<AuthService>().restoreSession();
     } catch (_) {
+      _checkingSession = false;
       if (!mounted) return;
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -185,7 +188,8 @@ class _SplashScreenState extends State<SplashScreen>
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 650),
         reverseTransitionDuration: const Duration(milliseconds: 300),
-        pageBuilder: (_, __, ___) => loggedIn ? ScanScreen() : const LoginScreen(),
+        pageBuilder: (_, __, ___) =>
+        loggedIn ? const MyMugsScreen() : const LoginScreen(),
         transitionsBuilder: (_, animation, __, child) {
           return FadeTransition(
             opacity: CurvedAnimation(

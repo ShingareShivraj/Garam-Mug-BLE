@@ -4,13 +4,16 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../models/login_model.dart';
 import 'api_endpoints.dart';
-import 'auth_service.dart';
-import '../models/login_model.dart';
 
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
-  const ApiException(this.message, [this.statusCode]);
+  final String? errorCode;
+
+  const ApiException(this.message, [this.statusCode, this.errorCode]);
+
+  bool get isSessionExpired =>
+      statusCode == 401 || errorCode == 'AUTHENTICATION_REQUIRED';
   @override
   String toString() => message;
 }
@@ -23,6 +26,23 @@ class ApiService {
   Future<String> currentUser(LoginModel session) async {
     final response = await _request(ApiEndpoints.currentUserMethod, session: session);
     return response['message']?.toString() ?? '';
+  }
+
+  /// Returns the unwrapped Frappe RPC result for authenticated mug calls.
+  Future<Map<String, dynamic>> authenticatedRequest(
+      String method, {
+        required LoginModel session,
+        Map<String, String>? body,
+      }) async {
+    if (!session.isValid) {
+      throw const ApiException('Please log in first.', 401, 'AUTHENTICATION_REQUIRED');
+    }
+    final response = await _request(method, body: body, session: session);
+    final result = response['message'];
+    if (result is! Map<String, dynamic> || result['success'] != true) {
+      throw const ApiException('The server returned an unexpected response.');
+    }
+    return result;
   }
 
   Future<Map<String, dynamic>> _request(String method,
@@ -60,8 +80,19 @@ class ApiService {
           result['success'] == false || result['status'] == 'error' ||
           (code != null && code >= 400);
       if (failed) {
-        throw ApiException(_errorMessage(result, response.statusCode),
-          code ?? response.statusCode);
+        final errorCode = result['error_code'];
+        final csrfRejected = data['exc_type'] == 'CSRFTokenError';
+        throw ApiException(
+          csrfRejected
+              ? 'The server rejected the request verification. Please contact support.'
+              : _errorMessage(
+            result,
+            response.statusCode,
+            signingIn: method == ApiEndpoints.loginMethod,
+          ),
+          code ?? response.statusCode,
+          csrfRejected ? 'CSRF_TOKEN_REQUIRED' : errorCode is String ? errorCode : null,
+        );
       }
       if (method == ApiEndpoints.loginMethod) {
         final cookies = response.headers['set-cookie'] ?? '';
@@ -90,13 +121,21 @@ class ApiService {
     }
   }
 
-  String _errorMessage(Map<String, dynamic> data, int status) {
+  String _errorMessage(
+      Map<String, dynamic> data,
+      int status, {
+        required bool signingIn,
+      }) {
     final value = data['message'];
     if (value is String && value.trim().isNotEmpty) {
       return value.replaceAll(RegExp(r'<[^>]*>'), '').trim();
     }
-    if (status == 401) return 'Invalid username or password.';
-    if (status == 403) return 'Your account is not allowed to sign in.';
-    return 'The server could not complete sign-in. Please try again.';
+    if (status == 401) {
+      return signingIn
+          ? 'Invalid username or password.'
+          : 'Your session has expired. Please log in again.';
+    }
+    if (status == 403) return 'Your account is not allowed to perform this action.';
+    return 'The server could not complete the request. Please try again.';
   }
 }

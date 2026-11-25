@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../services/ble_bluetooth_service.dart';
 import '../services/device_service.dart';
 import 'login_screen.dart';
+import 'my_mugs_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -86,6 +87,28 @@ class SettingsScreen extends StatelessWidget {
                       style: titleStyle.copyWith(fontSize: 16)),
                   subtitle: Text(user ?? 'Garam Mug account', style: captionStyle),
                 ),
+                if (user != null) ...[
+                  Divider(height: 1, indent: 14, endIndent: 14, color: colors.border),
+                  ListTile(
+                    leading: Icon(Icons.coffee_outlined, color: colors.selectionInk),
+                    title: Text(
+                      'Manage registered mugs',
+                      style: titleStyle.copyWith(fontSize: 16),
+                    ),
+                    subtitle: Text(
+                      'View your mugs or add another one.',
+                      style: captionStyle,
+                    ),
+                    trailing: Icon(Icons.chevron_right_rounded, color: colors.muted),
+                    onTap: () {
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const MyMugsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
                 Divider(height: 1, indent: 14, endIndent: 14, color: colors.border),
                 ListTile(
                   leading: Icon(Icons.logout_rounded, color: colors.error),
